@@ -1,3 +1,4 @@
+//이게클라최종본
 #include <stdio.h>
 #include <time.h>
 #include <stdlib.h>
@@ -13,41 +14,56 @@
 #include <sys/ipc.h>
 #include <sys/msg.h>
 
-#define QKEY (key_t)1230
+#define SEND_QKEY (key_t)0321
+#define RCV_QKEY (key_t)0322
 #define QPERM 0777
 
-struct message_entry{
+struct send_message_entry{
     long data_type;
-    char message[1024];
+    char message[256];
+};
+
+struct rcv_message_entry{
+    long data_type;
+    char message[10000];
 };
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t msg_cond = PTHREAD_COND_INITIALIZER;
 
 char *message = NULL;
-unsigned char *receive_message = NULL;
 bool message_available = false;
-bool receive_message_available = false;
-bool new_message = true;
-int priority = 1;
 
-int init_queue() {
+unsigned char *comments_buffer;
+bool comments_buffer_available = false;
+int priority = 1;
+int mi = 0;
+
+int init_send_queue() {
     int qid;
-    if((qid = msgget((key_t)0175,IPC_CREAT|QPERM)) == -1){
+    if((qid = msgget(SEND_QKEY,IPC_CREAT|QPERM)) == -1){
+        perror("msgget failed");
+    }
+    return qid;
+}
+
+int init_rcv_queue() {
+    int qid;
+    if((qid = msgget(RCV_QKEY,IPC_CREAT|QPERM)) == -1){
         perror("msgget failed");
     }
     return qid;
 }
 
 int enter(){
-    int s_qid = init_queue();
-    struct message_entry send_entry;
+    int s_qid = init_send_queue();
+    struct send_message_entry send_entry;
 
     send_entry.data_type = (long)priority;
-    priority +=1;
+    //priority +=1;
     strcpy(send_entry.message, message);
 
-    if(msgsnd(s_qid, &send_entry, sizeof(send_entry), 0) == -1){
+    if(msgsnd(s_qid, &send_entry, 256, 0) == -1){
         perror("msgsnd failed");
         return -1;
     } else {
@@ -59,18 +75,16 @@ void *get_message(void *arg){
 
     while(1){
         pthread_mutex_lock(&mutex);
-        message = (unsigned char *)malloc(1024);
-        if(receive_message_available == true){
-            printf("Receive Server Message: %s\n",receive_message);
-            free(receive_message);
-            receive_message = NULL;
-            receive_message_available = false;
-        }else{
-            printf("No New Message\n");
+        message = (unsigned char *)malloc(256);
+        printf("Comments\n");
+        if(comments_buffer_available==true){
+            printf("%s",comments_buffer);
+            free(comments_buffer);
+            comments_buffer = NULL;
+            comments_buffer_available=false;
         }
-        new_message = false;
         printf("Enter message: ");
-        fgets(message, 1024, stdin);
+        fgets(message, 256, stdin);
         message_available = true;
         pthread_cond_signal(&msg_cond);
         pthread_mutex_unlock(&mutex);
@@ -82,30 +96,39 @@ void *send_message(void *arg){
         while(!message_available){
             pthread_cond_wait(&msg_cond,&mutex);
         }   
-
-        //이 부분에 ipc 기법을 이용한 message 배열을 보내기
-        int send_ok = enter();
-        if(send_ok != 0){
+        int send_ok = enter();  //이 부분에 ipc 기법을 이용한 message 배열을 보내기
+        if (send_ok != 0) {
             perror("enter failed");
         }
         free(message);
         message = NULL;
         message_available = false;
+        pthread_cond_signal(&msg_cond);
         pthread_mutex_unlock(&mutex);
     }
 }
 void *recv_message(void *arg){
     while(1){
         pthread_mutex_lock(&mutex);
-        while(receive_message_available){
+        while(comments_buffer_available){
             pthread_cond_wait(&msg_cond,&mutex);
         }
-        receive_message = (unsigned char *)malloc(1024);
 
-        //이 부분에 ipc 기법을 이용해 receive_message에 저장
-        strcpy(receive_message, "1234");
+        int r_qid = init_rcv_queue();int mlen;
+        struct rcv_message_entry rcv_entry;
+        ssize_t rcvsize;
 
-        receive_message_available = true;
+        if((rcvsize = msgrcv(r_qid, &rcv_entry, sizeof(rcv_entry), 0, 0)) == -1){
+            pthread_cond_wait(&msg_cond,&mutex);
+        }else{
+            comments_buffer = malloc(1);
+            comments_buffer[0] = '\0';
+            comments_buffer = realloc(comments_buffer, strlen(comments_buffer)
+            + strlen(rcv_entry.message)+2);
+            strcat(comments_buffer, rcv_entry.message);
+            comments_buffer_available=true;
+        }
+
         pthread_cond_signal(&msg_cond);
         pthread_mutex_unlock(&mutex);
     }
