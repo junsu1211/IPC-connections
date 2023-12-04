@@ -14,7 +14,7 @@
 #include <sys/msg.h>
 
 #define QKEY (key_t)1230
-#define QPERM 0666
+#define QPERM 0777
 
 struct message_entry{
     long data_type;
@@ -36,7 +36,6 @@ int init_queue() {
     if((qid = msgget((key_t)0175,IPC_CREAT|QPERM)) == -1){
         perror("msgget failed");
     }
-    printf("%d\n",qid);
     return qid;
 }
 
@@ -86,8 +85,8 @@ void *send_message(void *arg){
 
         //이 부분에 ipc 기법을 이용한 message 배열을 보내기
         int send_ok = enter();
-        if(send_ok == 0){
-            printf("Send message: %s",message);
+        if(send_ok != 0){
+            perror("enter failed");
         }
         free(message);
         message = NULL;
