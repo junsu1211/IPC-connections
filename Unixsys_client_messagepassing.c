@@ -14,38 +14,46 @@
 #include <sys/msg.h>
 
 #define QKEY (key_t)1230
-#define QPERM 0777
+#define QPERM 0666
 
-typedef struct{
+struct message_entry{
     long data_type;
-    unsigned char message[1024];
-} message_entry;
+    char message[1024];
+};
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t msg_cond = PTHREAD_COND_INITIALIZER;
 
-unsigned char *message = NULL;
+char *message = NULL;
 unsigned char *receive_message = NULL;
 bool message_available = false;
 bool receive_message_available = false;
 bool new_message = true;
+int priority = 1;
+
+int init_queue() {
+    int qid;
+    if((qid = msgget((key_t)0175,IPC_CREAT|QPERM)) == -1){
+        perror("msgget failed");
+    }
+    printf("%d\n",qid);
+    return qid;
+}
 
 int enter(){
-    int s_qid;
+    int s_qid = init_queue();
     struct message_entry send_entry;
-    send_entry.data_type = (long)0;
+
+    send_entry.data_type = (long)priority;
+    priority +=1;
     strcpy(send_entry.message, message);
 
-    //if((s_qid = init_queue())==-1)
-        //return (-1);
-
-    if(msgsnd(s_qid,&send_entry,1024,0)==-1){
+    if(msgsnd(s_qid, &send_entry, sizeof(send_entry), 0) == -1){
         perror("msgsnd failed");
-        return(-1);
-    }else{
-        return (0);
+        return -1;
+    } else {
+        return 0;
     }
-
 }
 
 void *get_message(void *arg){
@@ -78,9 +86,9 @@ void *send_message(void *arg){
 
         //이 부분에 ipc 기법을 이용한 message 배열을 보내기
         int send_ok = enter();
-        if(send_ok == 0)
+        if(send_ok == 0){
             printf("Send message: %s",message);
-        
+        }
         free(message);
         message = NULL;
         message_available = false;
