@@ -174,7 +174,7 @@ void *print_comments(void *arg){
     while(1){
         pthread_mutex_lock(&mutex);
         if(receive_massage_available == true){
-            printf("\nClient Comments\n");
+            printf("\nClient1 Comments\n");
             printf("%s", comments_buffer);
             receive_massage_available = false;
         }

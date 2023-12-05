@@ -14,6 +14,9 @@
 #include <sys/ipc.h>
 #include <sys/msg.h>
 
+#include <time.h>
+#define BILLION 1000000000L
+
 #define SEND_QKEY (key_t)60042
 #define RCV_QKEY (key_t)60043
 #define QPERM 0777
@@ -38,6 +41,9 @@ unsigned char *comments_buffer;
 bool comments_buffer_available = false;
 int priority = 1;
 int mi = 0;
+
+struct timespec start,stop;
+double accum;
 
 int init_send_queue() {
     int qid;
