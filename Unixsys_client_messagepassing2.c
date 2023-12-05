@@ -1,4 +1,3 @@
-//이게클라최종본
 #include <stdio.h>
 #include <time.h>
 #include <stdlib.h>
@@ -13,6 +12,7 @@
 #include <sys/types.h>
 #include <sys/ipc.h>
 #include <sys/msg.h>
+#include <signal.h>
 
 #include <time.h>
 #define BILLION 1000000000L
@@ -41,9 +41,6 @@ unsigned char *comments_buffer;
 bool comments_buffer_available = false;
 int priority = 1;
 int mi = 0;
-
-struct timespec start,stop;
-double accum;
 
 int init_send_queue() {
     int qid;
@@ -82,7 +79,7 @@ void *get_message(void *arg){
     while(1){
         pthread_mutex_lock(&mutex);
         message = (unsigned char *)malloc(256);
-        printf("\nComments\n");
+        printf("Comments\n");
         if(comments_buffer_available==true){
             printf("%s",comments_buffer);
             free(comments_buffer);
@@ -91,6 +88,7 @@ void *get_message(void *arg){
         }
         printf("Enter message: ");
         fgets(message, 256, stdin);
+        printf("\n");
         message_available = true;
         pthread_cond_signal(&msg_cond);
         pthread_mutex_unlock(&mutex);
@@ -101,11 +99,17 @@ void *send_message(void *arg){
         pthread_mutex_lock(&mutex);
         while(!message_available){
             pthread_cond_wait(&msg_cond,&mutex);
-        }   
+        }  
+        struct timespec start,stop;
+        double accum;
+        clock_gettime(CLOCK_MONOTONIC,&start);
         int send_ok = enter();  //이 부분에 ipc 기법을 이용한 message 배열을 보내기
         if (send_ok != 0) {
             perror("enter failed");
         }
+        clock_gettime(CLOCK_MONOTONIC,&stop);
+        accum = (stop.tv_sec-start.tv_sec)+(double)(stop.tv_nsec-start.tv_nsec)/(double)BILLION;
+        printf("send time: %.9f\n",accum);
         free(message);
         message = NULL;
         message_available = false;
@@ -124,9 +128,15 @@ void *recv_message(void *arg){
         struct rcv_message_entry rcv_entry;
         ssize_t rcvsize;
 
+        struct timespec start,stop;
+        double accum;
+        clock_gettime(CLOCK_MONOTONIC,&start);
         if((rcvsize = msgrcv(r_qid, &rcv_entry, sizeof(rcv_entry), 0, IPC_NOWAIT)) == -1){
             pthread_cond_wait(&msg_cond,&mutex);
         }else{
+            clock_gettime(CLOCK_MONOTONIC,&stop);
+            accum = (stop.tv_sec-start.tv_sec)+(double)(stop.tv_nsec-start.tv_nsec)/(double)BILLION;
+            printf("receive time: %.9f\n",accum);
             comments_buffer = malloc(1);
             comments_buffer[0] = '\0';
             comments_buffer = realloc(comments_buffer, strlen(comments_buffer)
@@ -140,6 +150,7 @@ void *recv_message(void *arg){
 }
 
 int main(){
+
     pthread_t send_thread, recv_thread, get_thread;
 
     pthread_create(&send_thread, NULL, send_message, NULL);
@@ -149,4 +160,6 @@ int main(){
     pthread_join(send_thread,NULL);
     pthread_join(recv_thread,NULL);
     pthread_join(get_thread,NULL);
+
+    return 0;
 }

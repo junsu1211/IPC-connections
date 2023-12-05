@@ -1,4 +1,3 @@
-//이게클라최종본
 #include <stdio.h>
 #include <time.h>
 #include <stdlib.h>
