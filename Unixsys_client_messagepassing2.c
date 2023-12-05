@@ -14,8 +14,8 @@
 #include <sys/ipc.h>
 #include <sys/msg.h>
 
-#define SEND_QKEY (key_t)60040
-#define RCV_QKEY (key_t)60041
+#define SEND_QKEY (key_t)60042
+#define RCV_QKEY (key_t)60043
 #define QPERM 0777
 
 struct send_message_entry{
