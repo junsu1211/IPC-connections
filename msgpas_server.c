@@ -42,19 +42,28 @@ int init_queue() {
 }
 
 int serve(){
+    struct message_entry recv_entry;
+    int recv_size;
 
     int qid = init_queue();
-    struct message_entry recv_entry;
-    ssize_t recv_size;
+    memset(&recv_entry,0,sizeof(struct message_entry));
 
-    if((recv_size = msgrcv(qid, &recv_entry, 1024, 0, 0))==-1){
-        perror("msgrcv fail");
+    struct timespec start,stop;
+    double accum;
+    clock_gettime(CLOCK_MONOTONIC,&start);
+    if((recv_size = msgrcv(qid, &recv_entry, 1024, 0, IPC_NOWAIT))==-1){
+        memset(&recv_entry,0,sizeof(struct message_entry));
+        //perror("msgrcv fail");
         return -1;
     }else{
-        message = malloc(1);
-        message[0] = '\0';
-        message = realloc(message, strlen(recv_entry.message)+2);
-        strcat(message,recv_entry.message);
+        clock_gettime(CLOCK_MONOTONIC,&stop);
+        accum = (stop.tv_sec-start.tv_sec)+(double)(stop.tv_nsec-start.tv_nsec)/(double)BILLION;
+        
+        printf("receive time: %.9f\n",accum);
+        message = malloc(1024);
+        memset(message, 0, 1024);
+        memcpy(message,recv_entry.message,strlen(recv_entry.message));
+        memset(&recv_entry,0,sizeof(struct message_entry));
         return 0;
     }
 }
@@ -69,13 +78,13 @@ void *recv_message(void *arg){
             free(message);
             message = NULL;
         }
-        int sig;
-        if((sig=serve())==-1){
-            perror("receive fail");
-        }
 
-        print_message_available = true;
-        save_message_available = true;
+        int sig = serve();
+
+        if(message != NULL){
+            print_message_available = true;
+            save_message_available = true;
+        }
         pthread_cond_broadcast(&msg_cond);
         pthread_mutex_unlock(&mutex);
     }
@@ -106,8 +115,7 @@ void *save_comments(void *arg){
         FILE *comments_file;
         comments_file = fopen("comments.txt", "a");
         char save_message[1024];
-        strcat(save_message,"\n");
-        strcat(save_message,message);
+
         fprintf(comments_file, "%s", message);
         fclose(comments_file);
 

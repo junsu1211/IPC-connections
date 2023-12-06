@@ -101,7 +101,18 @@ void *send_make_message(void *arg){
         while(!send_message_available){
             pthread_cond_wait(&msg_cond,&mutex);
         }
-        int sig = enter();
+
+        int sig;
+        struct timespec start,stop;
+        double accum;
+        clock_gettime(CLOCK_MONOTONIC,&start);
+        if((sig=enter())==-1){
+            perror("receive fail");
+        }
+        clock_gettime(CLOCK_MONOTONIC,&stop);
+        accum = (stop.tv_sec-start.tv_sec)+(double)(stop.tv_nsec-start.tv_nsec)/(double)BILLION;
+        printf("send time: %.9f\n",accum);
+
         free(send_message);
         send_message = NULL;
         send_message_available = false;
