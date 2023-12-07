@@ -47,10 +47,16 @@ int enter(){
     struct message_entry send_entry;
     send_entry.data_type = (long)priority;
     memcpy(send_entry.message, send_message,strlen(send_message));
+    struct timespec start,stop;
+    double accum;
+    clock_gettime(CLOCK_MONOTONIC,&start);
     if(msgsnd(qid, &send_entry, strlen(send_message), 0) == -1){
         perror("msgsnd failed");
         return -1;
     } else {
+        clock_gettime(CLOCK_MONOTONIC,&stop);
+        accum = (stop.tv_sec-start.tv_sec)+(double)(stop.tv_nsec-start.tv_nsec)/(double)BILLION;
+        printf("send time: %.9f\n",accum);
         return 0;
     }
 }
@@ -103,15 +109,9 @@ void *send_make_message(void *arg){
         }
 
         int sig;
-        struct timespec start,stop;
-        double accum;
-        clock_gettime(CLOCK_MONOTONIC,&start);
         if((sig=enter())==-1){
             perror("receive fail");
         }
-        clock_gettime(CLOCK_MONOTONIC,&stop);
-        accum = (stop.tv_sec-start.tv_sec)+(double)(stop.tv_nsec-start.tv_nsec)/(double)BILLION;
-        printf("send time: %.9f\n",accum);
 
         free(send_message);
         send_message = NULL;
